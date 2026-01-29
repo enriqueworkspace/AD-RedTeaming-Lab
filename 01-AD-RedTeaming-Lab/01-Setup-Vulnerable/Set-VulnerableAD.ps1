@@ -1,23 +1,39 @@
 # Set-VulnerableAD.ps1
-# PRECAUCIÓN: Ejecutar solo en entornos de laboratorio.
+# CAUTION: Execute ONLY in a controlled laboratory environment.
+# This script configures common Active Directory vulnerabilities for educational purposes.
 
 Import-Module ActiveDirectory
 
-Write-Host "[+] Configurando usuarios vulnerables..." -ForegroundColor Cyan
+Write-Host "[+] Initializing Vulnerable AD Configuration..." -ForegroundColor Cyan
 
-# 1. AS-REP Roasting
-$pass = ConvertTo-SecureString "Password123!" -AsPlainText -Force
-New-ADUser -Name "Victim ASREP" -SamAccountName "victim.asrep" -AccountPassword $pass -Enabled $true
-# Aquí está la vulnerabilidad: DONT_REQ_PREAUTH
-Set-ADAccountControl -Identity "victim.asrep" -DoesNotRequireKerberosPreauth $true
+# Define common password for lab accounts
+$pass = ConvertTo-SecureString "P@ssword123!" -AsPlainText -Force
 
-Write-Host "[!] Usuario 'victim.asrep' configurado para AS-REP Roasting." -ForegroundColor Yellow
+# --- 1. AS-REP Roasting Setup ---
+Write-Host "[*] Configuring AS-REP Roasting vulnerability..." -ForegroundColor White
+try {
+    $asrepUser = "victim.asrep"
+    New-ADUser -Name "Victim ASREP" -SamAccountName $asrepUser -AccountPassword $pass -Enabled $true -ErrorAction Stop
+    
+    # Enable DONT_REQ_PREAUTH (The actual vulnerability)
+    Set-ADAccountControl -Identity $asrepUser -DoesNotRequireKerberosPreauth $true
+    Write-Host "[!] SUCCESS: User '$asrepUser' is now vulnerable to AS-REP Roasting." -ForegroundColor Yellow
+} catch {
+    Write-Host "[-] ERROR: Failed to create AS-REP user. It might already exist." -ForegroundColor Red
+}
 
-# 2. Kerberoasting
-New-ADUser -Name "SQL Service Account" -SamAccountName "svc_sql" -AccountPassword $pass -Enabled $true
-# Aquí está la vulnerabilidad: Asignar un Service Principal Name (SPN)
-setspn -S MSSQLSvc/sql01.contoso.local:1433 svc_sql
+# --- 2. Kerberoasting Setup ---
+Write-Host "[*] Configuring Kerberoasting vulnerability..." -ForegroundColor White
+try {
+    $svcUser = "svc_sql"
+    New-ADUser -Name "SQL Service Account" -SamAccountName $svcUser -AccountPassword $pass -Enabled $true -ErrorAction Stop
+    
+    # Assign Service Principal Name (SPN) to the service account
+    # Domain updated to: company.local
+    setspn -S "MSSQLSvc/sql01.company.local:1433" $svcUser
+    Write-Host "[!] SUCCESS: User '$svcUser' is now vulnerable to Kerberoasting (SPN assigned)." -ForegroundColor Yellow
+} catch {
+    Write-Host "[-] ERROR: Failed to create Service Account or assign SPN." -ForegroundColor Red
+}
 
-Write-Host "[!] Usuario 'svc_sql' configurado para Kerberoasting (SPN asignado)." -ForegroundColor Yellow
-
-Write-Host "[+] Setup completado. El AD ahora tiene debilidades comunes para practicar." -ForegroundColor Green
+Write-Host "`n[+] Setup complete. The Active Directory forest is now prepared for testing." -ForegroundColor Green
