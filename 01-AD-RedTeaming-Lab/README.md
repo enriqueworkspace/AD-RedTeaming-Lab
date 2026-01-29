@@ -37,6 +37,7 @@ Manual and automated verifications were performed to confirm that the environmen
 The `DONT_REQ_PREAUTH` flag (bitmask `0x400000`) was verified for the `victim.asrep` user:
 ```powershell
 Get-ADUser -Identity "victim.asrep" -Properties userAccountControl | Select-Object Name, @{Name="ASREP_Vulnerable"; Expression={if($_.userAccountControl -band 0x400000){$true}else{$false}}}
+```
 Result: `ASREP_Vulnerable: True`
 
 #### B. Kerberoasting Validation
@@ -44,6 +45,7 @@ The Service Principal Name (SPN) registration was confirmed for the service acco
 
 ```PowerShell
 setspn -L svc_sql
+```
 Result: `MSSQLSvc/sql01.company.local:1433` successfully mapped to the `svc_sql` account.
 
 ## Phase 2: Exploitation
