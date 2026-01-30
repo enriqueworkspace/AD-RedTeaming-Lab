@@ -245,5 +245,11 @@ setspn -Q */* | Select-String "SQL Service Account"
 ```
 **Mitigation Strategy:** By rotating the svc_sql password to a high-entropy 32-character string, the TGS tickets obtained via Kerberoasting become functionally uncrackable within a reasonable timeframe.
 
-# 3.3 Final Project Conclusion
+## 3.3 Final Project Conclusion
 This laboratory demonstrates the high impact of common Active Directory misconfigurations. A single overlooked checkbox or an overly permissive GPO delegation can lead to a full forest compromise. By implementing Kerberos Pre-authentication, enforcing Strong Password Policies, and adhering to the Principle of Least Privilege (PoLP) for GPO management, organizations can effectively disrupt the most common lateral movement and privilege escalation paths used by modern threat actors.
+
+## 3.4 Automation: Hardening Script
+To streamline the remediation process, a PowerShell script was developed to automatically identify and fix Kerberos-related misconfigurations.
+
+* **Script Path:** `03-Hardening-Defense/Remediate-AD.ps1`
+* **Key Feature:** Uses bitwise operations on the `userAccountControl` attribute to enforce Kerberos Pre-authentication without affecting other account flags.
