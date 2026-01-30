@@ -96,7 +96,7 @@ Output:
 `$krb5asrep$23$victim.asrep@COMPANY.LOCAL:e90755652996c5c43fd1db326f51b5f3$c2f0f950d91397196... (truncated)`
 
 ### 2.2.2 Password Cracking
-To recover the plain-text password, the captured hash was saved into a file named `hashes.asrep` and processed using `John the Ripper` with the `rockyou.txt` wordlist.
+#### To recover the plain-text password, the captured hash was saved into a file named `hashes.asrep` and processed using `John the Ripper` with the `rockyou.txt` wordlist.
 ### Saving the hash
 `echo '$krb5asrep$23$victim.asrep@COMPANY.LOCAL:e90755652996c5c43fd1db326f51b5f3$c2f0f950d91397196...[REDACTED]...2cb82d' > hashes.asrep`
 
@@ -210,4 +210,40 @@ Administrator -------------- victim.asrep
 The command completed successfully.
 
 ## Phase 3: Hardening and Remediation
-This section will contain the security controls and PowerShell scripts required to remediate the identified vulnerabilities and monitor for similar attack patterns.
+The final phase of this project focused on remediating the exploited vulnerabilities and performing manual validation to ensure the security controls are operating correctly.
+
+#### 3.1 Remediation Summary
+| Attack Vector | Security Control Applied | Outcome |
+|--------------|--------------------------|---------|
+| AS-REP Roasting | Enforcement of Kerberos Pre-authentication. | **Mitigated:** The Domain Controller now mandates a proof of identity before issuing a Ticket Granting Ticket (TGT). |
+| Kerberoasting | Service Account Password Rotation & SPN Auditing. | **Hardened:** Increased password complexity (32+ characters) to make offline brute-force attacks computationally infeasible. |
+| GPO Abuse | ACL Cleanup & Least Privilege Enforcement. | **Mitigated:** Unauthorized write/modify permissions were removed from the `Vulnerable_Policy` GPO. |
+
+#### 3.2 Manual Verification Steps (Proof of Hardening)
+A professional security assessment must always verify that automated remediation scripts were successful through manual checks.
+
+#### 3.2.1 AS-REP Roasting Validation
+After applying the fix, an attempt was made to request a ticket without pre-authentication from the Kali Linux attack node.
+```bash
+impacket-GetNPUsers company.local/victim.asrep -dc-ip 192.168.0.25 -no-pass
+```
+Resulting Output: `[-] User victim.asrep doesn't have UF_DONT_REQUIRE_PREAUTH set`
+
+Conclusion: The vulnerability is successfully patched. The Domain Controller refuses to provide encrypted material without prior authentication.
+
+#### 3.2.2 GPO Delegation & ACL Audit
+The Group Policy Management Console (GPMC.msc) was manually inspected on DC01 to confirm that the permissions assigned to the victim.asrep account were revoked.
+
+**Finding:** The victim.asrep user was successfully removed from the Access Control List (ACL). Only high-privileged groups (Domain Admins, Enterprise Admins) and the SYSTEM account retain write access.
+
+#### 3.2.3 Kerberoasting: Strategic Mitigation
+Since Service Principal Names (SPNs) are required for application functionality (MSSQL), the SPN was left intact but protected via a strong passphrase policy.
+### Verification on DC01:
+```PowerShell
+# Confirmed the SPN still exists for service availability
+setspn -Q */* | Select-String "SQL Service Account"
+```
+**Mitigation Strategy:** By rotating the svc_sql password to a high-entropy 32-character string, the TGS tickets obtained via Kerberoasting become functionally uncrackable within a reasonable timeframe.
+
+# 3.3 Final Project Conclusion
+This laboratory demonstrates the high impact of common Active Directory misconfigurations. A single overlooked checkbox or an overly permissive GPO delegation can lead to a full forest compromise. By implementing Kerberos Pre-authentication, enforcing Strong Password Policies, and adhering to the Principle of Least Privilege (PoLP) for GPO management, organizations can effectively disrupt the most common lateral movement and privilege escalation paths used by modern threat actors.
