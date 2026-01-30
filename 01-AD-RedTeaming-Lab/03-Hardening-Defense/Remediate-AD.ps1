@@ -6,7 +6,7 @@
     AS-REP Roasting (Kerberos Pre-auth) and provides an audit for Kerberoasting 
     and GPO Delegation.
 .NOTES
-    Author: [Tu Nombre]
+    Author: Enrique
     Date: 2026
 #>
 
